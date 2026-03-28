@@ -184,7 +184,8 @@ void TaskThermistor(void *pvParameter){
 // --- TASK: Bluetooth Control Interface ---
 void TaskBluetoothControl (void *pvParameter){
   float ReceivedDistanceBT;
-  String InputBT;
+  char UserInput_Buffer[10];
+  char UserInput_Index = 0;
 
   while(1){
     // Stream data to client if connected
@@ -197,35 +198,48 @@ void TaskBluetoothControl (void *pvParameter){
     }
 
     // Read text commands to switch system ON or OFF
-    if(SerialBT.available()){
-      InputBT = SerialBT.readStringUntil('\n');
-      InputBT.trim();
-      InputBT.toLowerCase();
+    while(SerialBT.available()>0){
+      char UserInput_Char = SerialBT.read();
+      
+      if (UserInput_Char == '\n' || UserInput_Char == '\r'){
+        if (UserInput_Index > 0){
+          UserInput_Buffer[UserInput_Index] = '\0';
 
-      EventBits_t EVBits = xEventGroupGetBits(xEventGroup); 
+          EventBits_t EVBits = xEventGroupGetBits(xEventGroup); 
 
-      if(InputBT == "off"){
-        if(EVBits & Functional){
-          SerialBT.println("Radar Deactivated");
-          xEventGroupClearBits(xEventGroup, Functional);
-        }else{
-          SerialBT.println("Radar is Already Deactivated");
+          if(strcasecmp(UserInput_Buffer, "off") == 0){
+            if(EVBits & Functional){
+              SerialBT.println("Radar Deactivated");
+              xEventGroupClearBits(xEventGroup, Functional);
+            }else{
+              SerialBT.println("Radar is Already Deactivated");
+            }
+          }
+          else if(strcasecmp(UserInput_Buffer, "on") == 0){
+            if(!(EVBits & Functional)){
+              SerialBT.println("Radar Activated");
+              xEventGroupSetBits(xEventGroup, Functional);
+            }else{
+              SerialBT.println("Radar is Already Activated");
+            }
+          }
+          else{
+            SerialBT.println("Unknown Command");
+          }
         }
+
+        UserInput_Index = 0;
       }
-      else if(InputBT == "on"){
-        if(!(EVBits & Functional)){
-          SerialBT.println("Radar Activated");
-          xEventGroupSetBits(xEventGroup, Functional);
-        }else{
-          SerialBT.println("Radar is Already Activated");
-        }
+
+      else if(UserInput_Index < 9){
+        UserInput_Buffer[UserInput_Index] = UserInput_Char;
+        UserInput_Index++;
       }
-      else{
-        SerialBT.println("Unknown Command");
-      }
-    } 
+    }
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
+
 
 
 void setup() {
